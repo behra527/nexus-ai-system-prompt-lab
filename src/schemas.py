@@ -1,36 +1,25 @@
-from typing import Literal
-
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 
-class AIResponse(BaseModel):
-    """
-    Expected structured response from the LLM.
-    """
-
-    model_config = ConfigDict(extra="forbid")
+class LLMResponse(BaseModel):
+    """Schema for validating structured LLM responses."""
 
     summary: str = Field(
-        min_length=1,
-        description="Short summary of the answer.",
+        description="Short summary of the answer."
     )
 
     analysis: str = Field(
-        min_length=1,
-        description="Technical analysis of the answer.",
+        description="Technical analysis."
     )
 
     recommendation: str = Field(
-        min_length=1,
-        description="Recommended approach.",
+        description="Recommended approach."
     )
 
     risks: list[str] = Field(
-        description="Potential risks or limitations.",
+        description="Potential risks or limitations."
     )
 
-    confidence: Literal[
-        "high",
-        "medium",
-        "low",
-    ]
+    confidence: str = Field(
+        description="Confidence level: high, medium, or low."
+    )

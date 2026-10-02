@@ -1,59 +1,22 @@
-import json
-
 from pydantic import ValidationError
 
-from .schemas import AIResponse
+from src.schemas import LLMResponse
 
 
-def validate_response(response: str) -> tuple[bool, str]:
+def validate_llm_response(
+    response: str,
+) -> tuple[bool, LLMResponse | None, str | None]:
     """
-    Validate an LLM response against the expected
-    AIResponse schema.
+    Validate an LLM response against the LLMResponse schema.
     """
 
     try:
+        parsed_response = LLMResponse.model_validate_json(response)
 
-        data = json.loads(response)
+        return True, parsed_response, None
 
-    except json.JSONDecodeError as exc:
+    except ValidationError as error:
+        return False, None, str(error)
 
-        return (
-            False,
-            f"Invalid JSON: {exc.msg}",
-        )
-
-    if not isinstance(data, dict):
-
-        return (
-            False,
-            "Invalid structure: expected a JSON object.",
-        )
-
-    try:
-
-        validated = AIResponse.model_validate(data)
-
-        return (
-            True,
-            validated.model_dump_json(indent=2),
-        )
-
-    except ValidationError as exc:
-
-        errors = []
-
-        for error in exc.errors():
-
-            location = ".".join(
-                str(item)
-                for item in error["loc"]
-            )
-
-            errors.append(
-                f"{location}: {error['msg']}"
-            )
-
-        return (
-            False,
-            "\n".join(errors),
-        )
+    except Exception as error:
+        return False, None, str(error)

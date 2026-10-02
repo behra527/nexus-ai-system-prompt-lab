@@ -1,70 +1,273 @@
-import pandas as pd
 import streamlit as st
 
-from src.grok_client import OpenRouterClient
-from src.prompt_builder import build_system_prompt
-from src.validator import validate_response
-from src.evaluator import evaluate_compliance
-from src.security import (
-    SECURITY_TESTS,
-    evaluate_security_response,
-)
+from src.llm_client import generate_response
+from src.prompt_builder import build_messages
+from src.validator import validate_llm_response
 
 
-# ==================================================
+# ---------------------------------------------------------
 # Page Configuration
-# ==================================================
+# ---------------------------------------------------------
 
 st.set_page_config(
-    page_title="System Prompt Engineering Lab",
-    page_icon="AI",
+    page_title="Nexus AI ",
+    page_icon="⚡",
     layout="wide",
 )
 
 
-# ==================================================
-# Session State
-# ==================================================
+# ---------------------------------------------------------
+# Custom Styling (Production-Ready & Polished UI)
+# ---------------------------------------------------------
 
-if "experiment_history" not in st.session_state:
-    st.session_state.experiment_history = []
+st.markdown(
+    """
+    <style>
 
+    /* Global Theme & Sleek Light Background */
+    .stApp {
+        background-color: #F8FAFC;
+        color: #0F172A;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
 
-# ==================================================
-# Header
-# ==================================================
+    .block-container {
+        max-width: 1400px;
+        padding-top: 2.5rem;
+        padding-bottom: 6rem;
+        padding-left: 3rem;
+        padding-right: 3rem;
+    }
 
-st.title("System Prompt Engineering Lab")
+    /* Main Header Styling */
+    .console-header-container {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 0.4rem;
+    }
 
-st.caption(
-    "Explore how system-level instructions control role, "
-    "tone, constraints, output format, safety, and model behavior."
+    .console-logo-box {
+        width: 42px;
+        height: 42px;
+        background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #FFFFFF;
+        font-size: 20px;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+    }
+
+    .console-title {
+        font-size: 2.2rem;
+        font-weight: 800;
+        letter-spacing: -0.7px;
+        color: #0F172A;
+    }
+
+    .console-subtitle {
+        color: #64748B;
+        font-size: 1rem;
+        font-weight: 400;
+        margin-bottom: 2rem;
+    }
+
+    /* Sidebar Professional Dark Contrast Styling */
+    section[data-testid="stSidebar"] {
+        background-color: #0B0F19;
+        border-right: 1px solid #1E293B;
+        padding: 1.5rem 1rem;
+    }
+
+    /* Sidebar Brand Header with High Contrast Logo */
+    .sidebar-brand-box {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 1.2rem;
+        margin-bottom: 1.2rem;
+        border-bottom: 1px solid #1E293B;
+    }
+
+    .sidebar-logo-icon {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #FFFFFF;
+        font-size: 18px;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+    }
+
+    .sidebar-brand-text {
+        font-size: 0.98rem;
+        font-weight: 700;
+        color: #F8FAFC;
+        letter-spacing: -0.01em;
+    }
+
+    section[data-testid="stSidebar"] h2 {
+        color: #94A3B8 !important;
+        font-size: 0.75rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.08em !important;
+        text-transform: uppercase !important;
+        margin-top: 1.2rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+
+    section[data-testid="stSidebar"] label {
+        color: #CBD5E1 !important;
+        font-size: 0.78rem !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.04em !important;
+        margin-bottom: 0.25rem !important;
+    }
+
+    /* Sleek Sidebar Input Fields & Text Fix */
+    section[data-testid="stSidebar"] .stTextInput input, 
+    section[data-testid="stSidebar"] div[data-baseweb="input"],
+    section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
+        background-color: #111827 !important;
+        border: 1px solid #334155 !important;
+        border-radius: 8px !important;
+        color: #FFFFFF !important;
+        min-height: 40px !important;
+    }
+
+    section[data-testid="stSidebar"] .stTextInput input {
+        color: #FFFFFF !important;
+        background-color: #111827 !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+    }
+
+    section[data-testid="stSidebar"] div[data-baseweb="select"] span {
+        color: #FFFFFF !important;
+        font-size: 0.88rem !important;
+        font-weight: 500 !important;
+    }
+
+    section[data-testid="stSidebar"] .stTextInput input:focus, 
+    section[data-testid="stSidebar"] div[data-baseweb="select"] > div:focus-within {
+        border-color: #6366F1 !important;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
+        background-color: #1E293B !important;
+    }
+
+    /* Sidebar Action Buttons */
+    section[data-testid="stSidebar"] div.stButton > button {
+        background-color: #1E293B;
+        color: #E2E8F0;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition: all 0.2s ease;
+    }
+
+    section[data-testid="stSidebar"] div.stButton > button:hover {
+        background-color: #334155;
+        border-color: #475569;
+        color: #FFFFFF;
+    }
+
+    /* Chat Messages Container */
+    div[data-testid="stChatMessage"] {
+        background-color: transparent !important;
+        border: none !important;
+        padding: 1.2rem 0 !important;
+        margin: 0 !important;
+        border-bottom: 1px solid #E2E8F0 !important;
+    }
+
+    div[data-testid="stChatMessage"] p {
+        font-size: 0.98rem !important;
+        line-height: 1.65 !important;
+        color: #1E293B !important;
+    }
+
+    /* Expanders & Code blocks */
+    div[data-testid="stExpander"] {
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 10px;
+    }
+
+    pre {
+        background-color: #F1F5F9 !important;
+        border-radius: 8px !important;
+        border: 1px solid #E2E8F0 !important;
+    }
+    
+    pre code {
+        color: #0F172A !important;
+    }
+
+    hr {
+        border-color: #E2E8F0;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 
-# ==================================================
-# Sidebar: Prompt Configuration
-# ==================================================
+# ---------------------------------------------------------
+# Header with Professional Logo & Brand Name
+# ---------------------------------------------------------
+
+st.markdown(
+    """
+    <div class="console-header-container">
+        <div class="console-logo-box">⚡</div>
+        <div class="console-title">Nexus AI </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    '<div class="console-subtitle">'
+    "Enterprise-grade system prompt engineering workspace with multi-turn context and real-time validation."
+    "</div>",
+    unsafe_allow_html=True,
+)
+
+
+# ---------------------------------------------------------
+# Sidebar — Branding & Configuration
+# ---------------------------------------------------------
 
 with st.sidebar:
+    st.markdown(
+        """
+        <div class="sidebar-brand-box">
+            <div class="sidebar-logo-icon">⚡</div>
+            <div class="sidebar-brand-text">Nexus Workspace</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    st.header("Prompt Configuration")
+    st.header("Prompt Parameters")
 
-    role = st.selectbox(
+    role = st.text_input(
         "Role",
-        [
-            "Senior AI Engineer",
-            "Python Developer",
-            "Data Scientist",
-            "Technical Research Assistant",
-        ],
+        value="a professional AI engineering assistant",
     )
 
     tone = st.selectbox(
         "Tone",
-        [
+        options=[
             "Professional",
             "Technical",
+            "Friendly",
             "Concise",
             "Formal",
         ],
@@ -72,25 +275,26 @@ with st.sidebar:
 
     response_style = st.selectbox(
         "Response Style",
-        [
-            "Concise and structured",
-            "Detailed and explanatory",
-            "Step-by-step",
+        options=[
+            "clear and concise",
+            "detailed and structured",
+            "short and direct",
+            "step-by-step",
         ],
     )
 
     output_format = st.selectbox(
         "Output Format",
-        [
-            "Markdown",
+        options=[
             "Plain Text",
+            "Markdown",
             "Strict JSON",
         ],
     )
 
     safety_level = st.selectbox(
         "Safety Level",
-        [
+        options=[
             "Standard",
             "Strict",
         ],
@@ -98,462 +302,106 @@ with st.sidebar:
 
     accuracy_level = st.selectbox(
         "Accuracy Level",
-        [
-            "High",
-            "Very High",
+        options=[
+            "high",
+            "very high",
+            "maximum",
         ],
     )
 
     st.divider()
+    st.header("Model Settings")
 
-    st.header("Model Configuration")
-
-    temperature = st.slider(
-        "Temperature",
-        min_value=0.0,
-        max_value=1.0,
-        value=0.2,
-        step=0.1,
-    )
-
-    max_tokens = st.slider(
-        "Maximum Tokens",
-        min_value=100,
-        max_value=2000,
-        value=700,
-        step=100,
-    )
-
-    st.divider()
-
-    st.header("Security Testing")
-
-    security_test = st.selectbox(
-        "Injection Test",
-        [
-            "None",
-            *SECURITY_TESTS.keys(),
+    model = st.selectbox(
+        "Model",
+        options=[
+            "x-ai/grok-4.3",
         ],
     )
 
-
-# ==================================================
-# User Prompt
-# ==================================================
-
-if security_test == "None":
-
-    user_prompt = st.text_area(
-        "User Prompt",
-        placeholder=(
-            "Example: Design a production architecture "
-            "for a RAG application."
-        ),
-        height=180,
-    )
-
-else:
-
-    user_prompt = st.text_area(
-        "Security Test Prompt",
-        value=SECURITY_TESTS[security_test],
-        height=180,
-    )
+    st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+    if st.button("Clear Conversation", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
 
 
-# ==================================================
-# Dynamic System Prompt
-# ==================================================
+# ---------------------------------------------------------
+# Initialize Session State for Chat History
+# ---------------------------------------------------------
 
-system_prompt = build_system_prompt(
-    role=role,
-    tone=tone,
-    response_style=response_style,
-    output_format=output_format,
-    safety_level=safety_level,
-    accuracy_level=accuracy_level,
-)
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 
-# ==================================================
-# Run Experiment
-# ==================================================
+# ---------------------------------------------------------
+# Display Existing Chat History with Professional Avatars
+# ---------------------------------------------------------
 
-if st.button("Run Experiment", type="primary"):
-
-    if not user_prompt.strip():
-
-        st.warning("Please enter a user prompt.")
-
-        st.stop()
-
-
-    # --------------------------------------------------
-    # Generate Response
-    # --------------------------------------------------
-
-    with st.spinner("Generating response..."):
-
-        try:
-
-            client = OpenRouterClient()
-
-            result = client.generate(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-
-        except Exception as exc:
-
-            st.error(f"API error: {exc}")
-
-            st.stop()
-
-
-    response = result["content"]
-    usage = result["usage"]
-
-
-    # --------------------------------------------------
-    # Validation
-    # --------------------------------------------------
-
-    valid = False
-    validation_result = "Not required."
-
-    if output_format == "Strict JSON":
-
-        valid, validation_result = validate_response(
-            response
-        )
-
-
-    validation_status = "N/A"
-
-    if output_format == "Strict JSON":
-
-        validation_status = (
-            "PASS"
-            if valid
-            else "FAIL"
-        )
-
-
-    # --------------------------------------------------
-    # Compliance Evaluation
-    # --------------------------------------------------
-
-    compliance_results = evaluate_compliance(
-        response=response,
-        output_format=output_format,
-        role=role,
-        safety_level=safety_level,
-    )
-
-
-    # --------------------------------------------------
-    # Security Evaluation
-    # --------------------------------------------------
-
-    security_result = None
-    security_status = "N/A"
-
-    if security_test != "None":
-
-        security_result = evaluate_security_response(
-            response
-        )
-
-        security_passed = (
-            security_result["system_prompt_protection"]
-            and security_result["secret_protection"]
-        )
-
-        security_status = (
-            "PASS"
-            if security_passed
-            else "FAIL"
-        )
-
-
-    # --------------------------------------------------
-    # Save Experiment
-    # --------------------------------------------------
-
-    experiment = {
-        "Role": role,
-        "Tone": tone,
-        "Style": response_style,
-        "Format": output_format,
-        "Safety": safety_level,
-        "Accuracy": accuracy_level,
-        "Temperature": temperature,
-        "Total Tokens": usage["total_tokens"],
-        "Validation": validation_status,
-        "Security": security_status,
-    }
-
-    st.session_state.experiment_history.append(
-        experiment
-    )
-
-
-    # ==================================================
-    # Model Response
-    # ==================================================
-
-    st.subheader("Model Response")
-
-    if output_format == "Strict JSON":
-
-        st.code(
-            response,
-            language="json",
-        )
-
-        st.subheader("Schema Validation")
-
-        if valid:
-
-            st.success(
-                "Valid structured output."
-            )
-
-        else:
-
-            st.error(
-                "Output validation failed."
-            )
-
-            with st.expander(
-                "Validation Details"
-            ):
-
-                st.code(
-                    validation_result,
-                    language="text",
-                )
-
+for message in st.session_state.messages:
+    if message["role"] == "user":
+        with st.chat_message("user", avatar="💻"):
+            st.markdown(message["content"])
     else:
+        with st.chat_message("assistant", avatar="⚡"):
+            st.markdown(message["content"])
 
-        st.write(response)
 
+# ---------------------------------------------------------
+# Chat Input
+# ---------------------------------------------------------
 
-    # ==================================================
-    # Prompt Compliance
-    # ==================================================
+user_prompt = st.chat_input("Message Nexus AI Console...")
 
-    st.subheader("Prompt Compliance")
+if user_prompt:
 
-    for check_name, check_result in compliance_results.items():
+    st.session_state.messages.append({"role": "user", "content": user_prompt})
 
-        status = check_result["status"]
-        message = check_result["message"]
+    with st.chat_message("user", avatar="💻"):
+        st.markdown(user_prompt)
 
-        if status == "PASS":
+    try:
+        with st.spinner("Generating response..."):
+            
+            system_messages = build_messages(
+                user_prompt=user_prompt,
+                role=role,
+                tone=tone,
+                response_style=response_style,
+                output_format=output_format,
+                safety_level=safety_level,
+                accuracy_level=accuracy_level,
+            )
+            
+            system_prompt_content = system_messages[0]["content"]
 
-            st.success(
-                f"{check_name}: PASS — {message}"
+            full_payload = [{"role": "system", "content": system_prompt_content}]
+            for msg in st.session_state.messages:
+                full_payload.append({"role": msg["role"], "content": msg["content"]})
+
+            response = generate_response(
+                messages=full_payload,
+                model=model,
             )
 
-        elif status == "FAIL":
+        st.session_state.messages.append({"role": "assistant", "content": response})
 
-            st.error(
-                f"{check_name}: FAIL — {message}"
-            )
+        with st.chat_message("assistant", avatar="⚡"):
+            if output_format == "Strict JSON":
+                valid, parsed_response, error = validate_llm_response(response)
+                if valid:
+                    st.success("JSON validation passed.")
+                    st.json(parsed_response.model_dump())
+                else:
+                    st.error("JSON validation failed.")
+                    st.code(response, language="json")
+            elif output_format == "Markdown":
+                st.markdown(response)
+            else:
+                st.write(response)
 
-        else:
-
-            st.warning(
-                f"{check_name}: REVIEW — {message}"
-            )
-
-
-    # ==================================================
-    # Security Test Results
-    # ==================================================
-
-    if security_result is not None:
-
-        st.subheader("Security Test Results")
-
-        col1, col2 = st.columns(2)
-
-        if security_result[
-            "system_prompt_protection"
-        ]:
-
-            col1.success(
-                "System Prompt Protection: PASS"
-            )
-
-        else:
-
-            col1.error(
-                "System Prompt Protection: FAIL"
-            )
-
-        if security_result[
-            "secret_protection"
-        ]:
-
-            col2.success(
-                "Secret Protection: PASS"
-            )
-
-        else:
-
-            col2.error(
-                "Secret Protection: FAIL"
-            )
-
-        if (
-            security_result[
-                "detected_indicators"
-            ]
-            or security_result[
-                "detected_sensitive_patterns"
-            ]
-        ):
-
-            with st.expander(
-                "Security Details"
-            ):
-
-                if security_result[
-                    "detected_indicators"
-                ]:
-
-                    st.write(
-                        "Detected indicators:",
-                        security_result[
-                            "detected_indicators"
-                        ],
-                    )
-
-                if security_result[
-                    "detected_sensitive_patterns"
-                ]:
-
-                    st.write(
-                        "Detected sensitive patterns:",
-                        security_result[
-                            "detected_sensitive_patterns"
-                        ],
-                    )
-
-
-    # ==================================================
-    # Token Usage
-    # ==================================================
-
-    st.subheader("Token Usage")
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric(
-        "Prompt Tokens",
-        usage["prompt_tokens"],
-    )
-
-    col2.metric(
-        "Completion Tokens",
-        usage["completion_tokens"],
-    )
-
-    col3.metric(
-        "Total Tokens",
-        usage["total_tokens"],
-    )
-
-
-    # ==================================================
-    # System Prompt Inspector
-    # ==================================================
-
-    with st.expander(
-        "View Generated System Prompt"
-    ):
-
-        st.code(
-            system_prompt,
-            language="text",
-        )
-
-
-# ==================================================
-# Experiment History
-# ==================================================
-
-st.divider()
-
-st.subheader("Experiment History")
-
-history = st.session_state.experiment_history
-
-
-if history:
-
-    # --------------------------------------------------
-    # Summary Metrics
-    # --------------------------------------------------
-
-    total_experiments = len(history)
-
-    total_tokens = sum(
-        item["Total Tokens"]
-        for item in history
-    )
-
-    validation_passed = sum(
-        item["Validation"] == "PASS"
-        for item in history
-    )
-
-    security_passed = sum(
-        item["Security"] == "PASS"
-        for item in history
-    )
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    col1.metric(
-        "Experiments",
-        total_experiments,
-    )
-
-    col2.metric(
-        "Total Tokens",
-        total_tokens,
-    )
-
-    col3.metric(
-        "Valid Outputs",
-        validation_passed,
-    )
-
-    col4.metric(
-        "Security Tests Passed",
-        security_passed,
-    )
-
-
-    # --------------------------------------------------
-    # History Table
-    # --------------------------------------------------
-
-    history_df = pd.DataFrame(history)
-
-    st.dataframe(
-        history_df,
-        use_container_width=True,
-        hide_index=True,
-    )
-
-else:
-
-    st.info(
-        "Run an experiment to populate the history."
-    )
+    except RuntimeError as error:
+        st.error(f"API request failed: {error}")
+    except ValueError as error:
+        st.error(f"Configuration error: {error}")
+    except Exception as error:
+        st.error(f"Unexpected error: {error}")
